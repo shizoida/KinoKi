@@ -9,6 +9,9 @@
     <string name="search_too_short">ჩაწერეთ მინიმუმ 3 სიმბოლო</string>
     <string name="loading">იტვირთება…</string>
     <string name="nothing_found">არაფერი მოიძებნა</string>
+    <string name="no_favorites">ფავორიტები ცარიელია. ფილმზე ან სერიალზე გრძლად დააჭირეთ OK-ს (ტელეფონზე თითით გააჩერეთ), რომ დაამატოთ</string>
+    <string name="favorite_added">დაემატა ფავორიტებში</string>
+    <string name="favorite_removed">ამოიშალა ფავორიტებიდან</string>
     <string name="load_failed">ვერ ჩაიტვირთა. შეამოწმეთ ინტერნეტი</string>
     <string name="nothing_playable">ამ ფილმის ან სერიალის ნახვა ვერ მოხერხდა</string>
     <string name="playback_failed">ვიდეოს დაკვრა ვერ მოხერხდა</string>

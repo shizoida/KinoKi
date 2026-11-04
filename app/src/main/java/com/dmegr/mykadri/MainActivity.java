@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
@@ -30,15 +33,21 @@ public class MainActivity extends Activity {
 
     /** Name, listing path, and whether the category has a genre filter ("true"/"false"). */
     private static final String[][] CATEGORIES = {
+            {"ფავორიტები", "", "false"},
             {"ფილმები", "/filmebiqartulad/", "true"},
             {"სერიალები", "/serialebi_qartulad/", "true"},
             {"თურქული სერიალები", "/turquli-serialebi-qartulad/", "false"},
             {"ანიმე", "/anime/", "true"},
     };
+    /** The favorites tab lists locally saved titles instead of a category on the site. */
+    private static final int FAVORITES_TAB = 0;
+    private static final int MOVIES_TAB = 1;
     private static final int MIN_SEARCH_LENGTH = 3;
     private static final int PREFETCH_ROWS = 6;
     private static final int INDENT_DP = 32;
     private static final int BASE_PADDING_DP = 24;
+    private static final String FAVORITE_MARK = "★ ";
+    private static final int FAVORITE_COLOR = 0xFFFFC107;
 
     private enum Kind {TITLE, SEASON, EPISODE}
 
@@ -126,6 +135,7 @@ public class MainActivity extends Activity {
         adapter = new RowAdapter();
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) -> onRowClicked(position));
+        list.setOnItemLongClickListener((parent, view, position, id) -> onRowLongClicked(position));
         list.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(AbsListView view, int scrollState) {
@@ -139,7 +149,9 @@ public class MainActivity extends Activity {
             }
         });
 
-        showCategory(0);
+        // Start on the favorites if there are any, otherwise on the movies.
+        Favorites.load(this);
+        showCategory(Favorites.all().isEmpty() ? MOVIES_TAB : FAVORITES_TAB);
     }
 
     @Override
@@ -158,8 +170,34 @@ public class MainActivity extends Activity {
         currentTab = index;
         activeGenre = null;
         updateGenreButton();
+        if (index == FAVORITES_TAB) {
+            showFavorites();
+            return;
+        }
         categoryUrl = Site.BASE_URL + CATEGORIES[index][1];
         loadMore();
+    }
+
+    private void showFavorites() {
+        hasMore = false;
+        for (Site.Title title : Favorites.all()) {
+            rows.add(new Row(Kind.TITLE, 0, title.name, title.url));
+        }
+        adapter.notifyDataSetChanged();
+        setStatus(rows.isEmpty() ? getString(R.string.no_favorites) : null);
+        if (!rows.isEmpty()) {
+            focusListUnlessTyping();
+        }
+    }
+
+    /**
+     * Moves focus to the list when new content arrives, so the remote works right away. Focus is left alone while the
+     * user is typing a search, and wherever it already is inside the list.
+     */
+    private void focusListUnlessTyping() {
+        if (!search.hasFocus() && !list.hasFocus()) {
+            list.requestFocus();
+        }
     }
 
     private void showGenre(Site.Genre genre) {
@@ -278,10 +316,7 @@ public class MainActivity extends Activity {
         adapter.notifyDataSetChanged();
         setStatus(rows.isEmpty() ? getString(R.string.nothing_found) : null);
         if (firstPage && !rows.isEmpty()) {
-            View focus = getCurrentFocus();
-            if (focus == null || tabViews.contains(focus) || focus == genreButton) {
-                list.requestFocus();
-            }
+            focusListUnlessTyping();
         }
     }
 
@@ -401,6 +436,25 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Long press (held OK on a remote) on a title adds it to the favorites, or removes it if it is already there. */
+    private boolean onRowLongClicked(int position) {
+        Row row = rows.get(position);
+        if (row.kind != Kind.TITLE) {
+            return false;
+        }
+        boolean added = Favorites.toggle(this, row.label, row.url);
+        Toast.makeText(this, added ? R.string.favorite_added : R.string.favorite_removed, Toast.LENGTH_SHORT).show();
+        if (!added && currentTab == FAVORITES_TAB) {
+            if (row.expanded) {
+                toggle(row);
+            }
+            rows.remove(row);
+            setStatus(rows.isEmpty() ? getString(R.string.no_favorites) : null);
+        }
+        adapter.notifyDataSetChanged();
+        return true;
+    }
+
     private void play(String url, String title) {
         startActivity(new Intent(this, PlayerActivity.class)
                 .putExtra(PlayerActivity.EXTRA_URL, url)
@@ -436,7 +490,14 @@ public class MainActivity extends Activity {
             float density = getResources().getDisplayMetrics().density;
             view.setPadding(Math.round((BASE_PADDING_DP + row.depth * INDENT_DP) * density),
                     view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom());
-            view.setText(row.label);
+            if (row.kind == Kind.TITLE && Favorites.contains(row.url)) {
+                SpannableString starred = new SpannableString(FAVORITE_MARK + row.label);
+                starred.setSpan(new ForegroundColorSpan(FAVORITE_COLOR), 0, FAVORITE_MARK.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                view.setText(starred);
+            } else {
+                view.setText(row.label);
+            }
             view.setTextSize(row.kind == Kind.TITLE ? 22 : 19);
             view.setTextColor(row.kind == Kind.TITLE ? 0xFFFFFFFF : row.kind == Kind.SEASON ? 0xFFE0C068 : 0xFFC8C8D8);
             return view;
