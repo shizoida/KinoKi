@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyKadri</string>
+    <string name="search_hint">ძებნა…</string>
+    <string name="genre">ჟანრი</string>
+    <string name="genre_selected">ჟანრი: %s</string>
+    <string name="all_genres">ყველა ჟანრი</string>
+    <string name="genres_unavailable">ჟანრები ჯერ არ ჩატვირთულა</string>
+    <string name="search_too_short">ჩაწერეთ მინიმუმ 3 სიმბოლო</string>
+    <string name="loading">იტვირთება…</string>
+    <string name="nothing_found">არაფერი მოიძებნა</string>
+    <string name="load_failed">ვერ ჩაიტვირთა. შეამოწმეთ ინტერნეტი</string>
+    <string name="nothing_playable">ამ ფილმის ან სერიალის ნახვა ვერ მოხერხდა</string>
+    <string name="playback_failed">ვიდეოს დაკვრა ვერ მოხერხდა</string>
+    <string name="resuming">გრძელდება %s-დან</string>
+    <string name="season">სეზონი %s</string>
+</resources>

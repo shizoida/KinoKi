@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TV-sized screens get wider margins -->
+    <dimen name="page_padding">48dp</dimen>
+    <dimen name="page_padding_top">32dp</dimen>
+</resources>
