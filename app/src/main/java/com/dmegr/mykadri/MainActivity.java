@@ -34,14 +34,16 @@ public class MainActivity extends Activity {
     /** Name, listing path, and whether the category has a genre filter ("true"/"false"). */
     private static final String[][] CATEGORIES = {
             {"ფავორიტები", "", "false"},
+            {"ბოლოს ნანახი", "", "false"},
             {"ფილმები", "/filmebiqartulad/", "true"},
             {"სერიალები", "/serialebi_qartulad/", "true"},
             {"თურქული სერიალები", "/turquli-serialebi-qartulad/", "false"},
             {"ანიმე", "/anime/", "true"},
     };
-    /** The favorites tab lists locally saved titles instead of a category on the site. */
+    /** The favorites and recently-watched tabs list locally saved titles instead of a category on the site. */
     private static final int FAVORITES_TAB = 0;
-    private static final int MOVIES_TAB = 1;
+    private static final int RECENT_TAB = 1;
+    private static final int MOVIES_TAB = 2;
     private static final int MIN_SEARCH_LENGTH = 3;
     private static final int PREFETCH_ROWS = 6;
     private static final int INDENT_DP = 32;
@@ -56,6 +58,8 @@ public class MainActivity extends Activity {
         final int depth;
         final String label;
         final String url;
+        /** For seasons and episodes, the title they belong to; null on title rows. */
+        Row owner;
         boolean loading;
         boolean expanded;
         /** Seasons or episodes under this row; null until a series has been opened. */
@@ -150,8 +154,18 @@ public class MainActivity extends Activity {
         });
 
         // Start on the favorites if there are any, otherwise on the movies.
-        Favorites.load(this);
-        showCategory(Favorites.all().isEmpty() ? MOVIES_TAB : FAVORITES_TAB);
+        TitleStore.FAVORITES.load(this);
+        TitleStore.RECENT.load(this);
+        showCategory(TitleStore.FAVORITES.all().isEmpty() ? MOVIES_TAB : FAVORITES_TAB);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Coming back from the player: what was just played moves to the top of the recently watched list.
+        if (currentTab == RECENT_TAB) {
+            showCategory(RECENT_TAB);
+        }
     }
 
     @Override
@@ -171,20 +185,25 @@ public class MainActivity extends Activity {
         activeGenre = null;
         updateGenreButton();
         if (index == FAVORITES_TAB) {
-            showFavorites();
+            showStored(TitleStore.FAVORITES, R.string.no_favorites);
+            return;
+        }
+        if (index == RECENT_TAB) {
+            showStored(TitleStore.RECENT, R.string.no_recent);
             return;
         }
         categoryUrl = Site.BASE_URL + CATEGORIES[index][1];
         loadMore();
     }
 
-    private void showFavorites() {
+    /** Lists a locally saved set of titles (favorites, recently watched); nothing is fetched from the site. */
+    private void showStored(TitleStore store, int emptyMessage) {
         hasMore = false;
-        for (Site.Title title : Favorites.all()) {
+        for (Site.Title title : store.all()) {
             rows.add(new Row(Kind.TITLE, 0, title.name, title.url));
         }
         adapter.notifyDataSetChanged();
-        setStatus(rows.isEmpty() ? getString(R.string.no_favorites) : null);
+        setStatus(rows.isEmpty() ? getString(emptyMessage) : null);
         if (!rows.isEmpty()) {
             focusListUnlessTyping();
         }
@@ -346,7 +365,7 @@ public class MainActivity extends Activity {
                 toggle(row);
                 break;
             case EPISODE:
-                play(row.url, row.label);
+                play(row.owner, row.url, row.label);
                 break;
         }
     }
@@ -379,7 +398,7 @@ public class MainActivity extends Activity {
         title.loading = false;
         setStatus(rows.isEmpty() ? getString(R.string.nothing_found) : null);
         if (item.movieUrl != null) {
-            play(item.movieUrl, title.label);
+            play(title, item.movieUrl, title.label);
             return;
         }
         if (item.seasons.isEmpty()) {
@@ -392,12 +411,15 @@ public class MainActivity extends Activity {
             Row parent = title;
             if (!single) {
                 Row seasonRow = new Row(Kind.SEASON, title.depth + 1, getString(R.string.season, season.name), null);
+                seasonRow.owner = title;
                 seasonRow.children = new ArrayList<>();
                 title.children.add(seasonRow);
                 parent = seasonRow;
             }
             for (Site.Episode episode : season.episodes) {
-                parent.children.add(new Row(Kind.EPISODE, parent.depth + 1, episode.title, episode.url));
+                Row episodeRow = new Row(Kind.EPISODE, parent.depth + 1, episode.title, episode.url);
+                episodeRow.owner = title;
+                parent.children.add(episodeRow);
             }
         }
         if (rows.contains(title)) {
@@ -442,7 +464,7 @@ public class MainActivity extends Activity {
         if (row.kind != Kind.TITLE) {
             return false;
         }
-        boolean added = Favorites.toggle(this, row.label, row.url);
+        boolean added = TitleStore.FAVORITES.toggle(this, row.label, row.url);
         Toast.makeText(this, added ? R.string.favorite_added : R.string.favorite_removed, Toast.LENGTH_SHORT).show();
         if (!added && currentTab == FAVORITES_TAB) {
             if (row.expanded) {
@@ -455,10 +477,12 @@ public class MainActivity extends Activity {
         return true;
     }
 
-    private void play(String url, String title) {
+    /** Plays a stream and remembers its title (the movie, or the series an episode belongs to) as recently watched. */
+    private void play(Row title, String url, String label) {
+        TitleStore.RECENT.addFirst(this, title.label, title.url);
         startActivity(new Intent(this, PlayerActivity.class)
                 .putExtra(PlayerActivity.EXTRA_URL, url)
-                .putExtra(PlayerActivity.EXTRA_TITLE, title));
+                .putExtra(PlayerActivity.EXTRA_TITLE, label));
     }
 
     // ---- adapter ------------------------------------------------------------------------------------------------
@@ -490,7 +514,7 @@ public class MainActivity extends Activity {
             float density = getResources().getDisplayMetrics().density;
             view.setPadding(Math.round((BASE_PADDING_DP + row.depth * INDENT_DP) * density),
                     view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom());
-            if (row.kind == Kind.TITLE && Favorites.contains(row.url)) {
+            if (row.kind == Kind.TITLE && TitleStore.FAVORITES.contains(row.url)) {
                 SpannableString starred = new SpannableString(FAVORITE_MARK + row.label);
                 starred.setSpan(new ForegroundColorSpan(FAVORITE_COLOR), 0, FAVORITE_MARK.length(),
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
