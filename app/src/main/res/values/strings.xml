@@ -18,4 +18,5 @@
     <string name="playback_failed">ვიდეოს დაკვრა ვერ მოხერხდა</string>
     <string name="resuming">გრძელდება %s-დან</string>
     <string name="season">სეზონი %s</string>
+    <string name="imdb_rating">IMDb %s</string>
 </resources>

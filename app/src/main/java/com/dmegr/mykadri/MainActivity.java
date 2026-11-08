@@ -50,6 +50,8 @@ public class MainActivity extends Activity {
     private static final int BASE_PADDING_DP = 24;
     private static final String FAVORITE_MARK = "★ ";
     private static final int FAVORITE_COLOR = 0xFFFFC107;
+    private static final String WATCHED_MARK = "✓ ";
+    private static final int WATCHED_COLOR = 0xFF4CAF50;
 
     private enum Kind {TITLE, SEASON, EPISODE}
 
@@ -58,6 +60,8 @@ public class MainActivity extends Activity {
         final int depth;
         final String label;
         final String url;
+        /** The listing entry (with poster, year, rating) for title rows; null for seasons and episodes. */
+        final Site.Title title;
         /** For seasons and episodes, the title they belong to; null on title rows. */
         Row owner;
         boolean loading;
@@ -70,6 +74,15 @@ public class MainActivity extends Activity {
             this.depth = depth;
             this.label = label;
             this.url = url;
+            this.title = null;
+        }
+
+        Row(Site.Title title) {
+            this.kind = Kind.TITLE;
+            this.depth = 0;
+            this.label = title.name;
+            this.url = title.url;
+            this.title = title;
         }
     }
 
@@ -165,6 +178,9 @@ public class MainActivity extends Activity {
         // Coming back from the player: what was just played moves to the top of the recently watched list.
         if (currentTab == RECENT_TAB) {
             showCategory(RECENT_TAB);
+        } else {
+            // Episodes and movies finished in the player turn green.
+            adapter.notifyDataSetChanged();
         }
     }
 
@@ -200,7 +216,7 @@ public class MainActivity extends Activity {
     private void showStored(TitleStore store, int emptyMessage) {
         hasMore = false;
         for (Site.Title title : store.all()) {
-            rows.add(new Row(Kind.TITLE, 0, title.name, title.url));
+            rows.add(new Row(title));
         }
         adapter.notifyDataSetChanged();
         setStatus(rows.isEmpty() ? getString(emptyMessage) : null);
@@ -325,7 +341,7 @@ public class MainActivity extends Activity {
         int added = 0;
         for (Site.Title title : titles) {
             if (seenUrls.add(title.url)) {
-                rows.add(new Row(Kind.TITLE, 0, title.name, title.url));
+                rows.add(new Row(title));
                 added++;
             }
         }
@@ -365,7 +381,7 @@ public class MainActivity extends Activity {
                 toggle(row);
                 break;
             case EPISODE:
-                play(row.owner, row.url, row.label);
+                play(row.owner, row.url, row.label, row.url);
                 break;
         }
     }
@@ -398,7 +414,7 @@ public class MainActivity extends Activity {
         title.loading = false;
         setStatus(rows.isEmpty() ? getString(R.string.nothing_found) : null);
         if (item.movieUrl != null) {
-            play(title, item.movieUrl, title.label);
+            play(title, item.movieUrl, title.label, title.url);
             return;
         }
         if (item.seasons.isEmpty()) {
@@ -464,7 +480,7 @@ public class MainActivity extends Activity {
         if (row.kind != Kind.TITLE) {
             return false;
         }
-        boolean added = TitleStore.FAVORITES.toggle(this, row.label, row.url);
+        boolean added = TitleStore.FAVORITES.toggle(this, row.title);
         Toast.makeText(this, added ? R.string.favorite_added : R.string.favorite_removed, Toast.LENGTH_SHORT).show();
         if (!added && currentTab == FAVORITES_TAB) {
             if (row.expanded) {
@@ -478,16 +494,20 @@ public class MainActivity extends Activity {
     }
 
     /** Plays a stream and remembers its title (the movie, or the series an episode belongs to) as recently watched. */
-    private void play(Row title, String url, String label) {
-        TitleStore.RECENT.addFirst(this, title.label, title.url);
+    private void play(Row title, String url, String label, String watchKey) {
+        TitleStore.RECENT.addFirst(this, title.title);
         startActivity(new Intent(this, PlayerActivity.class)
                 .putExtra(PlayerActivity.EXTRA_URL, url)
-                .putExtra(PlayerActivity.EXTRA_TITLE, label));
+                .putExtra(PlayerActivity.EXTRA_TITLE, label)
+                .putExtra(PlayerActivity.EXTRA_WATCH_KEY, watchKey));
     }
 
     // ---- adapter ------------------------------------------------------------------------------------------------
 
     private final class RowAdapter extends BaseAdapter {
+
+        private static final int TYPE_TITLE = 0;
+        private static final int TYPE_TEXT = 1;
 
         @Override
         public int getCount() {
@@ -505,25 +525,76 @@ public class MainActivity extends Activity {
         }
 
         @Override
+        public int getViewTypeCount() {
+            return 2;
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            return rows.get(position).kind == Kind.TITLE ? TYPE_TITLE : TYPE_TEXT;
+        }
+
+        @Override
         public View getView(int position, View convertView, ViewGroup parent) {
+            Row row = rows.get(position);
+            return row.kind == Kind.TITLE ? bindTitle(row, convertView, parent) : bindText(row, convertView, parent);
+        }
+
+        /** A title: poster, name (starred if a favorite, green if watched), year and rating, and the synopsis. */
+        private View bindTitle(Row row, View convertView, ViewGroup parent) {
+            View view = convertView != null ? convertView
+                    : getLayoutInflater().inflate(R.layout.item_title, parent, false);
+            Site.Title title = row.title;
+
+            TextView name = view.findViewById(R.id.name);
+            if (TitleStore.FAVORITES.contains(row.url)) {
+                SpannableString starred = new SpannableString(FAVORITE_MARK + row.label);
+                starred.setSpan(new ForegroundColorSpan(FAVORITE_COLOR), 0, FAVORITE_MARK.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                name.setText(starred);
+            } else {
+                name.setText(row.label);
+            }
+            name.setTextColor(Progress.isWatched(MainActivity.this, row.url) ? WATCHED_COLOR : 0xFFFFFFFF);
+
+            StringBuilder meta = new StringBuilder();
+            if (title.year != null) {
+                meta.append(title.year);
+            }
+            if (title.rating != null) {
+                meta.append(meta.length() > 0 ? "  ·  " : "").append(getString(R.string.imdb_rating, title.rating));
+            }
+            TextView metaView = view.findViewById(R.id.meta);
+            metaView.setText(meta);
+            metaView.setVisibility(meta.length() > 0 ? View.VISIBLE : View.GONE);
+
+            Site.Details details = Descriptions.get(row.url);
+            if (details == null) {
+                Descriptions.request(row.url, this::notifyDataSetChanged);
+            }
+            // Titles saved before posters were kept have none of their own; borrow the one from the title's page.
+            Images.load(view.findViewById(R.id.poster),
+                    title.poster != null ? title.poster : details != null ? details.poster : null);
+            String description = details == null ? "" : details.description;
+            TextView descriptionView = view.findViewById(R.id.description);
+            descriptionView.setText(description);
+            descriptionView.setVisibility(description.isEmpty() ? View.GONE : View.VISIBLE);
+            return view;
+        }
+
+        /** A season or episode: plain text, with watched episodes in green. */
+        private View bindText(Row row, View convertView, ViewGroup parent) {
             TextView view = (TextView) convertView;
             if (view == null) {
                 view = (TextView) getLayoutInflater().inflate(R.layout.item_row, parent, false);
             }
-            Row row = rows.get(position);
             float density = getResources().getDisplayMetrics().density;
             view.setPadding(Math.round((BASE_PADDING_DP + row.depth * INDENT_DP) * density),
                     view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom());
-            if (row.kind == Kind.TITLE && TitleStore.FAVORITES.contains(row.url)) {
-                SpannableString starred = new SpannableString(FAVORITE_MARK + row.label);
-                starred.setSpan(new ForegroundColorSpan(FAVORITE_COLOR), 0, FAVORITE_MARK.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                view.setText(starred);
-            } else {
-                view.setText(row.label);
-            }
-            view.setTextSize(row.kind == Kind.TITLE ? 22 : 19);
-            view.setTextColor(row.kind == Kind.TITLE ? 0xFFFFFFFF : row.kind == Kind.SEASON ? 0xFFE0C068 : 0xFFC8C8D8);
+            boolean watched = row.kind == Kind.EPISODE && Progress.isWatched(MainActivity.this, row.url);
+            view.setText(watched ? WATCHED_MARK + row.label : row.label);
+            view.setTextSize(19);
+            view.setTextColor(watched ? WATCHED_COLOR : row.kind == Kind.SEASON ? 0xFFE0C068 : 0xFFC8C8D8);
             return view;
         }
     }

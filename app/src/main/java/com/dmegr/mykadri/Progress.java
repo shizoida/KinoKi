@@ -11,6 +11,9 @@ final class Progress {
     private static final long MIN_RESUME_MS = 10_000;
     /** Within this distance of the end the title counts as finished and is forgotten. */
     private static final long FINISHED_MARGIN_MS = 60_000;
+    private static final String WATCHED_PREFIX = "watched:";
+    /** Playing past this fraction of the duration counts as having watched it (the rest is mostly credits). */
+    private static final double WATCHED_FRACTION = 0.9;
 
     private Progress() {
     }
@@ -35,6 +38,20 @@ final class Progress {
             editor.putLong(key(url), position);
         }
         editor.apply();
+    }
+
+    /**
+     * Whether something counts as watched: it was played to nearly the end at some point. {@code watchKey} is the
+     * stream URL of an episode, or the page URL of a movie. Stays true even if the user later replays the start.
+     */
+    static boolean isWatched(Context context, String watchKey) {
+        return prefs(context).getBoolean(WATCHED_PREFIX + key(watchKey), false);
+    }
+
+    static void markWatchedIfDone(Context context, String watchKey, long position, long duration) {
+        if (duration > 0 && position >= duration * WATCHED_FRACTION) {
+            prefs(context).edit().putBoolean(WATCHED_PREFIX + key(watchKey), true).apply();
+        }
     }
 
     private static SharedPreferences prefs(Context context) {

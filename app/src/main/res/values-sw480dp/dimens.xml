@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- TV-sized screens get wider margins -->
+    <!-- TV-sized screens get wider margins and larger posters and text -->
     <dimen name="page_padding">48dp</dimen>
     <dimen name="page_padding_top">32dp</dimen>
+    <dimen name="poster_width">110dp</dimen>
+    <dimen name="poster_height">165dp</dimen>
+    <dimen name="title_text">24sp</dimen>
+    <dimen name="detail_text">18sp</dimen>
 </resources>

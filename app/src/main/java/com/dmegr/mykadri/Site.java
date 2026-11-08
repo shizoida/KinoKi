@@ -24,6 +24,7 @@ import okhttp3.Dns;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okio.BufferedSource;
 
 /** Fetches and scrapes mykadri.tv: category listings and the player data embedded in each title's page. */
 final class Site {
@@ -48,6 +49,19 @@ final class Site {
     private static final Pattern CARD = Pattern.compile(
             "<a class=\"card-info\" href=\"([^\"]+)\"[^>]*>\\s*<h3 class=\"card-primary-title\">(.*?)</h3>",
             Pattern.DOTALL);
+    private static final Pattern CARD_BLOCK = Pattern.compile(
+            "<article class=\"card poster-card\">(.*?)</article>", Pattern.DOTALL);
+    private static final Pattern SRCSET = Pattern.compile("srcset=\"([^\"]+)\"");
+    private static final Pattern IMG_SRC = Pattern.compile("<img\\s[^>]*?src=\"([^\"]+)\"");
+    private static final Pattern CARD_YEAR = Pattern.compile("card-poster-year\">([^<]*)<");
+    private static final Pattern CARD_RATING = Pattern.compile("card-poster-rating\">([^<]*)<");
+    private static final Pattern META_DESCRIPTION = Pattern.compile(
+            "<meta name=\"description\" content=\"([^\"]*)\"");
+    private static final Pattern OG_IMAGE = Pattern.compile("<meta property=\"og:image\" content=\"([^\"]+)\"");
+    private static final Pattern POSTER_IMG = Pattern.compile(
+            "class=\"fullstory-poster\">.*?<img\\s[^>]*?src=\"([^\"]+)\"", Pattern.DOTALL);
+    /** The synopsis is in the page head and the poster a little further down, so only the start of the page is read. */
+    private static final int HEAD_BYTES = 48 * 1024;
     private static final Pattern PANEL = Pattern.compile(
             "language-player-panel\"\\s+data-player-id=\"(movie|series)-(geo|rus|eng)\"");
     private static final Pattern MOVIE_JSON = Pattern.compile("\\bmovie:\\s*\\[");
@@ -70,10 +84,17 @@ final class Site {
     static final class Title {
         final String name;
         final String url;
+        /** Poster image, release year and rating as shown on the listing card; null when the card has none. */
+        final String poster;
+        final String year;
+        final String rating;
 
-        Title(String name, String url) {
+        Title(String name, String url, String poster, String year, String rating) {
             this.name = name;
             this.url = url;
+            this.poster = poster;
+            this.year = year;
+            this.rating = rating;
         }
     }
 
@@ -155,6 +176,44 @@ final class Site {
         }
     }
 
+    /** Extras from a title's own page: the synopsis and the poster. Either may be empty. */
+    static final class Details {
+        final String description;
+        final String poster;
+
+        Details(String description, String poster) {
+            this.description = description;
+            this.poster = poster;
+        }
+    }
+
+    /** Reads the synopsis and poster from a title's page, downloading only the first part of it. */
+    static Details fetchDetails(String url) throws IOException {
+        Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT).build();
+        try (Response response = CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                throw new IOException("HTTP " + response.code());
+            }
+            BufferedSource source = response.body().source();
+            source.request(HEAD_BYTES);
+            String head = source.getBuffer().readUtf8(Math.min(source.getBuffer().size(), HEAD_BYTES));
+
+            String description = firstGroup(META_DESCRIPTION, head);
+            if (description != null) {
+                description = Html.fromHtml(description, Html.FROM_HTML_MODE_LEGACY).toString().trim();
+            }
+            String poster = firstGroup(POSTER_IMG, head);
+            if (poster == null) {
+                // The social-sharing image is a wide backdrop; ask TMDB for a thumbnail-sized version.
+                poster = firstGroup(OG_IMAGE, head);
+                if (poster != null) {
+                    poster = poster.replace("/w1280/", "/w342/");
+                }
+            }
+            return new Details(description == null ? "" : description, poster);
+        }
+    }
+
     /**
      * Uses the system resolver, but falls back to Cloudflare's DNS-over-HTTPS when it can't resolve a host. Some home
      * networks block mykadri.tv at the router's DNS, which otherwise makes the app look offline.
@@ -211,15 +270,49 @@ final class Site {
         }
     }
 
-    /** Titles listed on a category or search page. The site also keeps old cards in HTML comments; those are ignored. */
+    /**
+     * Titles listed on a category or search page, with the poster, year and rating shown on each card. The site also
+     * keeps old cards in HTML comments; those are ignored.
+     */
     static List<Title> parseTitles(String html) {
         List<Title> titles = new ArrayList<>();
-        Matcher matcher = CARD.matcher(COMMENT.matcher(html).replaceAll(""));
-        while (matcher.find()) {
-            String name = Html.fromHtml(matcher.group(2), Html.FROM_HTML_MODE_LEGACY).toString().trim();
-            titles.add(new Title(name, matcher.group(1)));
+        String page = COMMENT.matcher(html).replaceAll("");
+        Matcher blocks = CARD_BLOCK.matcher(page);
+        while (blocks.find()) {
+            String block = blocks.group(1);
+            Matcher card = CARD.matcher(block);
+            if (!card.find()) {
+                continue;
+            }
+            String name = Html.fromHtml(card.group(2), Html.FROM_HTML_MODE_LEGACY).toString().trim();
+            String poster = firstGroup(SRCSET, block);
+            if (poster == null) {
+                poster = firstGroup(IMG_SRC, block);
+            }
+            if (poster != null && poster.startsWith("/")) {
+                poster = BASE_URL + poster;
+            }
+            titles.add(new Title(name, card.group(1), poster, firstGroup(CARD_YEAR, block),
+                    firstGroup(CARD_RATING, block)));
+        }
+        if (titles.isEmpty()) {
+            // Unfamiliar markup: still list the titles, just without the extras.
+            Matcher matcher = CARD.matcher(page);
+            while (matcher.find()) {
+                String name = Html.fromHtml(matcher.group(2), Html.FROM_HTML_MODE_LEGACY).toString().trim();
+                titles.add(new Title(name, matcher.group(1), null, null, null));
+            }
         }
         return titles;
+    }
+
+    private static String firstGroup(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        String value = matcher.group(1).trim();
+        return value.isEmpty() ? null : value;
     }
 
     static Item parseItem(String html) throws JSONException {

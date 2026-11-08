@@ -23,11 +23,14 @@ final class TitleStore {
     private static final String KEY_ITEMS = "items";
     private static final String NAME = "n";
     private static final String URL = "u";
+    private static final String POSTER = "p";
+    private static final String YEAR = "y";
+    private static final String RATING = "r";
 
     private final String prefsName;
     private final int maxSize;
-    /** Page URL to title name, in display order. */
-    private final Map<String, String> items = new LinkedHashMap<>();
+    /** Page URL to title, in display order. */
+    private final Map<String, Site.Title> items = new LinkedHashMap<>();
     private boolean loaded;
 
     private TitleStore(String prefsName, int maxSize) {
@@ -44,11 +47,18 @@ final class TitleStore {
             JSONArray array = new JSONArray(prefs(context).getString(KEY_ITEMS, "[]"));
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.getJSONObject(i);
-                items.put(item.getString(URL), item.getString(NAME));
+                String url = item.getString(URL);
+                // Entries saved by older versions only have a name and URL; the extras are optional.
+                items.put(url, new Site.Title(item.getString(NAME), url, optString(item, POSTER),
+                        optString(item, YEAR), optString(item, RATING)));
             }
         } catch (JSONException e) {
             items.clear();
         }
+    }
+
+    private static String optString(JSONObject object, String key) {
+        return object.isNull(key) ? null : object.optString(key, null);
     }
 
     synchronized boolean contains(String url) {
@@ -56,19 +66,15 @@ final class TitleStore {
     }
 
     synchronized List<Site.Title> all() {
-        List<Site.Title> titles = new ArrayList<>();
-        for (Map.Entry<String, String> item : items.entrySet()) {
-            titles.add(new Site.Title(item.getValue(), item.getKey()));
-        }
-        return titles;
+        return new ArrayList<>(items.values());
     }
 
     /** Puts the title at the front (moving it there if it was already present) and drops the oldest beyond the limit. */
-    synchronized void addFirst(Context context, String name, String url) {
-        Map<String, String> older = new LinkedHashMap<>(items);
-        older.remove(url);
+    synchronized void addFirst(Context context, Site.Title title) {
+        Map<String, Site.Title> older = new LinkedHashMap<>(items);
+        older.remove(title.url);
         items.clear();
-        items.put(url, name);
+        items.put(title.url, title);
         items.putAll(older);
         Iterator<String> oldest = items.keySet().iterator();
         for (int i = 0; oldest.hasNext(); i++) {
@@ -81,21 +87,26 @@ final class TitleStore {
     }
 
     /** Adds the title if it isn't in the list, removes it if it is. Returns true if it is in the list afterwards. */
-    synchronized boolean toggle(Context context, String name, String url) {
-        if (items.containsKey(url)) {
-            items.remove(url);
+    synchronized boolean toggle(Context context, Site.Title title) {
+        if (items.containsKey(title.url)) {
+            items.remove(title.url);
             save(context);
             return false;
         }
-        addFirst(context, name, url);
+        addFirst(context, title);
         return true;
     }
 
     private void save(Context context) {
         JSONArray array = new JSONArray();
         try {
-            for (Map.Entry<String, String> item : items.entrySet()) {
-                array.put(new JSONObject().put(URL, item.getKey()).put(NAME, item.getValue()));
+            for (Site.Title title : items.values()) {
+                array.put(new JSONObject()
+                        .put(URL, title.url)
+                        .put(NAME, title.name)
+                        .put(POSTER, title.poster)
+                        .put(YEAR, title.year)
+                        .put(RATING, title.rating));
             }
         } catch (JSONException e) {
             return;

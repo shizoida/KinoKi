@@ -25,6 +25,8 @@ public class PlayerActivity extends Activity {
 
     static final String EXTRA_URL = "url";
     static final String EXTRA_TITLE = "title";
+    /** Identifies what to mark as watched: an episode's stream URL, or a movie's page URL. */
+    static final String EXTRA_WATCH_KEY = "watchKey";
 
     private static final long SAVE_INTERVAL_MS = 15_000;
     /** Resume slightly before where playback stopped, so the user catches the sentence they left in the middle of. */
@@ -42,6 +44,7 @@ public class PlayerActivity extends Activity {
     private PlayerView playerView;
     private ExoPlayer player;
     private String url;
+    private String watchKey;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +53,7 @@ public class PlayerActivity extends Activity {
         setContentView(R.layout.activity_player);
         playerView = findViewById(R.id.player);
         url = getIntent().getStringExtra(EXTRA_URL);
+        watchKey = getIntent().getStringExtra(EXTRA_WATCH_KEY);
         setTitle(getIntent().getStringExtra(EXTRA_TITLE));
     }
 
@@ -100,8 +104,10 @@ public class PlayerActivity extends Activity {
     private void saveCurrentPosition() {
         // After a failed load the player is idle and reports position 0; don't let that erase the saved spot.
         if (player != null && player.getPlaybackState() != Player.STATE_IDLE) {
-            long duration = player.getDuration();
-            Progress.save(this, url, player.getCurrentPosition(), duration == C.TIME_UNSET ? 0 : duration);
+            long duration = player.getDuration() == C.TIME_UNSET ? 0 : player.getDuration();
+            long position = player.getCurrentPosition();
+            Progress.save(this, url, position, duration);
+            Progress.markWatchedIfDone(this, watchKey != null ? watchKey : url, position, duration);
         }
     }
 
