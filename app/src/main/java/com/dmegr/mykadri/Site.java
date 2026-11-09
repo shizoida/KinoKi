@@ -7,21 +7,21 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URLEncoder;
-import java.net.UnknownHostException;
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import okhttp3.Dns;
+import okhttp3.Call;
+import okhttp3.EventListener;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okio.BufferedSource;
@@ -35,14 +35,21 @@ final class Site {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
-    private static final String DOH_URL = "https://1.1.1.1/dns-query?type=A&name=";
-    private static final int DNS_TYPE_A = 1;
 
-    /** Shared by page fetches and video playback, so both get the DNS fallback. */
+    private static final FallbackDns DNS = new FallbackDns();
+
+    /** Shared by page fetches, images and video playback, so all of them get the DNS fallback. */
     private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            .dns(new FallbackDns())
+            .dns(DNS)
+            .eventListener(new EventListener() {
+                @Override
+                public void connectFailed(Call call, InetSocketAddress address, Proxy proxy, Protocol protocol,
+                                          IOException failure) {
+                    DNS.markUnreachable(call.request().url().host());
+                }
+            })
             .build();
 
     private static final Pattern COMMENT = Pattern.compile("<!--.*?-->", Pattern.DOTALL);
@@ -166,9 +173,21 @@ final class Site {
         return CLIENT;
     }
 
+    /**
+     * Runs a request, retrying once if it fails. A failed connection tells the DNS fallback to look the host up through
+     * DNS-over-HTTPS too, so the second attempt can use addresses the first one did not have.
+     */
+    static Response execute(Request request) throws IOException {
+        try {
+            return CLIENT.newCall(request).execute();
+        } catch (IOException first) {
+            return CLIENT.newCall(request).execute();
+        }
+    }
+
     static String fetch(String url) throws IOException {
         Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT).build();
-        try (Response response = CLIENT.newCall(request).execute()) {
+        try (Response response = execute(request)) {
             if (!response.isSuccessful() || response.body() == null) {
                 throw new IOException("HTTP " + response.code());
             }
@@ -190,7 +209,7 @@ final class Site {
     /** Reads the synopsis and poster from a title's page, downloading only the first part of it. */
     static Details fetchDetails(String url) throws IOException {
         Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT).build();
-        try (Response response = CLIENT.newCall(request).execute()) {
+        try (Response response = execute(request)) {
             if (!response.isSuccessful() || response.body() == null) {
                 throw new IOException("HTTP " + response.code());
             }
@@ -211,62 +230,6 @@ final class Site {
                 }
             }
             return new Details(description == null ? "" : description, poster);
-        }
-    }
-
-    /**
-     * Uses the system resolver, but falls back to Cloudflare's DNS-over-HTTPS when it can't resolve a host. Some home
-     * networks block mykadri.tv at the router's DNS, which otherwise makes the app look offline.
-     */
-    private static final class FallbackDns implements Dns {
-
-        private final OkHttpClient bootstrap = new OkHttpClient.Builder()
-                .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .build();
-        private final Map<String, List<InetAddress>> resolved = new ConcurrentHashMap<>();
-
-        @Override
-        public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-            List<InetAddress> cached = resolved.get(hostname);
-            if (cached != null) {
-                return cached;
-            }
-            try {
-                return Dns.SYSTEM.lookup(hostname);
-            } catch (UnknownHostException e) {
-                List<InetAddress> addresses = resolveOverHttps(hostname);
-                if (addresses.isEmpty()) {
-                    throw e;
-                }
-                resolved.put(hostname, addresses);
-                return addresses;
-            }
-        }
-
-        private List<InetAddress> resolveOverHttps(String hostname) {
-            Request request = new Request.Builder()
-                    .url(DOH_URL + hostname)
-                    .header("Accept", "application/dns-json")
-                    .build();
-            List<InetAddress> addresses = new ArrayList<>();
-            try (Response response = bootstrap.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    return addresses;
-                }
-                JSONArray answers = new JSONObject(response.body().string()).optJSONArray("Answer");
-                for (int i = 0; answers != null && i < answers.length(); i++) {
-                    JSONObject answer = answers.getJSONObject(i);
-                    if (answer.optInt("type") == DNS_TYPE_A) {
-                        // getByName on a literal IP does not do a lookup; re-wrap it so it carries the hostname.
-                        byte[] ip = InetAddress.getByName(answer.getString("data")).getAddress();
-                        addresses.add(InetAddress.getByAddress(hostname, ip));
-                    }
-                }
-            } catch (IOException | JSONException e) {
-                addresses.clear();
-            }
-            return addresses;
         }
     }
 

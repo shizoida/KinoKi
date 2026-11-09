@@ -66,7 +66,7 @@ final class Images {
 
     private static Bitmap download(String url) {
         Request request = new Request.Builder().url(url).header("User-Agent", Site.USER_AGENT).build();
-        try (Response response = Site.client().newCall(request).execute()) {
+        try (Response response = Site.execute(request)) {
             if (!response.isSuccessful() || response.body() == null) {
                 return null;
             }
