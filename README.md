@@ -23,7 +23,8 @@ Android TV-სა და ტელეფონისთვის განკუ
 
 ## აწყობა
 
-საჭიროა Android SDK (platform 35) და JDK 17+. შექმენი `local.properties` და ჩაწერე SDK-ის გზა:
+საჭიროა Android SDK (platform 35) და JDK 17+. შექმენი `local.properties` და ჩაწერე SDK-ის გზა
+(ეს ფაილი Git-ში არ ინახება):
 
 ```
 sdk.dir=C\:/path/to/Android/Sdk
@@ -32,10 +33,13 @@ sdk.dir=C\:/path/to/Android/Sdk
 შემდეგ:
 
 ```
-gradle assembleDebug
+./gradlew assembleDebug
 ```
 
-მზა APK: `app/build/outputs/apk/debug/app-debug.apk`.
+Windows-ზე: `gradlew.bat assembleDebug`.
+
+მზა APK: `app/build/outputs/apk/debug/app-debug.apk`. ყოველ push-ზე GitHub Actions ამოწმებს, რომ პროექტი
+იბნება და ატვირთავს debug APK-ს (იხ. `.github/workflows/build.yml`).
 
 ## ტელეფონიდან ტელევიზორზე ჩართვა
 
@@ -63,7 +67,7 @@ gradle assembleDebug
 მხოლოდ „სხვა აპებზე გამოსახვის" ნებართვით უშვებს, რომელიც ერთხელ უნდა მიენიჭოს ADB-ით:
 
 ```
-adb shell appops set com.dmegr.kinoki SYSTEM_ALERT_WINDOW allow
+adb shell appops set com.kinoki.app SYSTEM_ALERT_WINDOW allow
 ```
 
 ## პროტოკოლი
@@ -88,3 +92,7 @@ adb shell appops set com.dmegr.kinoki SYSTEM_ALERT_WINDOW allow
 
 აპლიკაცია არ ავრცელებს კონტენტს — ის მხოლოდ აჩვენებს mykadri.tv-ზე არსებულ გვერდებსა და ნაკადებს, ისევე როგორც
 ბრაუზერი.
+
+## ლიცენზია
+
+[MIT](LICENSE).

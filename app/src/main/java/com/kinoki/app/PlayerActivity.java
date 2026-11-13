@@ -1,4 +1,4 @@
-package com.dmegr.kinoki;
+package com.kinoki.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;

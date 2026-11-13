@@ -1,4 +1,4 @@
-package com.dmegr.kinoki;
+package com.kinoki.app;
 
 import android.text.Html;
 

@@ -1,4 +1,4 @@
-package com.dmegr.kinoki;
+package com.kinoki.app;
 
 import android.os.Handler;
 import android.os.Looper;
