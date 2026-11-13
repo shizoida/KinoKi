@@ -1,4 +1,4 @@
-package com.dmegr.mykadri;
+package com.dmegr.kinoki;
 
 import org.json.JSONArray;
 import org.json.JSONException;

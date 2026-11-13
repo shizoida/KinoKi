@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MyKadri</string>
+    <string name="app_name">KinoKi</string>
     <string name="search_hint">ძებნა…</string>
     <string name="genre">ჟანრი</string>
     <string name="genre_selected">ჟანრი: %s</string>
@@ -19,4 +19,34 @@
     <string name="resuming">გრძელდება %s-დან</string>
     <string name="season">სეზონი %s</string>
     <string name="imdb_rating">IMDb %s</string>
+
+    <!-- Casting to a TV on the local network -->
+    <string name="cast_to_tv">ტელევიზორზე ▸</string>
+    <string name="cast_searching">ვეძებ ტელევიზორს…</string>
+    <string name="cast_choose">აირჩიეთ ტელევიზორი</string>
+    <string name="cast_connecting">ვუკავშირდები ტელევიზორს…</string>
+    <string name="cast_failed">ტელევიზორთან დაკავშირება ვერ მოხერხდა</string>
+    <string name="cast_not_found">ტელევიზორი ვერ მოიძებნა</string>
+    <string name="cast_not_found_help">შეამოწმეთ, რომ ტელეფონი და ტელევიზორი ერთსა და იმავე Wi-Fi ქსელში არიან, ტელევიზორზე გახსნილია KinoKi და ჩაწერეთ მისი IP მისამართი.</string>
+    <string name="cast_address_hint">მაგ.: 192.168.1.128</string>
+    <string name="cast_connect">დაკავშირება</string>
+    <string name="cast_playing">ტელევიზორზე მიმდინარეობს</string>
+    <string name="cast_paused">ტელევიზორზე დაპაუზებულია</string>
+    <string name="cast_time">%1$s / %2$s</string>
+    <string name="cast_pause">პაუზა</string>
+    <string name="cast_resume">გაგრძელება</string>
+    <string name="cast_rewind">−30 წმ</string>
+    <string name="cast_forward">+30 წმ</string>
+    <string name="cast_stop">გათიშვა</string>
+    <string name="cast_finished">ტელევიზორზე დასრულდა</string>
+    <string name="cast_lost">კავშირი ტელევიზორთან გაწყდა</string>
+    <string name="cast_tv_not_ready">ტელევიზორზე გახსენით KinoKi და თავიდან სცადეთ</string>
+    <string name="cast_channel">ტელეფონიდან ჩართვა</string>
+    <string name="cast_ready">მზადაა ტელეფონიდან ჩასართავად</string>
+    <string name="cast_volume">ხმა %1$d%%</string>
+    <string name="cast_volume_muted">ხმა გამორთულია</string>
+    <string name="cast_volume_down">ხმა −</string>
+    <string name="cast_volume_up">ხმა +</string>
+    <string name="cast_mute">დადუმება</string>
+    <string name="cast_unmute">ხმის ჩართვა</string>
 </resources>

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyKadriTv"
+rootProject.name = "KinoKi"
 include ":app"

@@ -1,4 +1,4 @@
-package com.dmegr.mykadri;
+package com.dmegr.kinoki;
 
 import android.content.Context;
 import android.content.SharedPreferences;

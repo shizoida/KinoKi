@@ -1,4 +1,4 @@
-package com.dmegr.mykadri;
+package com.dmegr.kinoki;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -170,6 +170,11 @@ public class MainActivity extends Activity {
         TitleStore.FAVORITES.load(this);
         TitleStore.RECENT.load(this);
         showCategory(TitleStore.FAVORITES.all().isEmpty() ? MOVIES_TAB : FAVORITES_TAB);
+
+        // On a TV, stay reachable from the phone even after the user goes back to the launcher.
+        if (CastHost.isTv(this)) {
+            CastService.start(this);
+        }
     }
 
     @Override

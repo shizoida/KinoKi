@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MyKadri" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.KinoKi" parent="android:Theme.DeviceDefault.NoActionBar" />
 </resources>

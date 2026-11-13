@@ -1,4 +1,4 @@
-package com.dmegr.mykadri;
+package com.dmegr.kinoki;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;

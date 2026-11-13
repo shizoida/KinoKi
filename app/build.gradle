@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.dmegr.mykadri'
+    namespace 'com.dmegr.kinoki'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dmegr.mykadri'
+        applicationId 'com.dmegr.kinoki'
         minSdk 24
         targetSdk 35
         versionCode 1
@@ -21,6 +21,7 @@ android {
 }
 
 dependencies {
+    implementation 'androidx.core:core:1.13.1'
     implementation 'androidx.media3:media3-exoplayer:1.5.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
     implementation 'androidx.media3:media3-ui:1.5.1'

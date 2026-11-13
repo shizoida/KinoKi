@@ -12,4 +12,141 @@
         android:focusable="true"
         app:show_buffering="when_playing" />
 
+    <!-- Phone only: hands the stream over to a TV on the same network -->
+    <TextView
+        android:id="@+id/cast_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="24dp"
+        android:background="@drawable/cast_button"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingStart="18dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="10dp"
+        android:text="@string/cast_to_tv"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp" />
+
+    <!-- Phone only: shown instead of the video while the TV is playing -->
+    <ScrollView
+        android:id="@+id/cast_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF000000"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/cast_state"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFA0A0B0"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/cast_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:maxLines="2"
+                android:textColor="#FFFFFFFF"
+                android:textSize="24sp" />
+
+            <TextView
+                android:id="@+id/cast_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#FFE0C068"
+                android:textSize="20sp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/cast_rewind"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cast_rewind" />
+
+                <Button
+                    android:id="@+id/cast_play_pause"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:minWidth="150dp"
+                    android:text="@string/cast_pause" />
+
+                <Button
+                    android:id="@+id/cast_forward"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cast_forward" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/cast_volume_down"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cast_volume_down" />
+
+                <TextView
+                    android:id="@+id/cast_volume"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:gravity="center"
+                    android:minWidth="120dp"
+                    android:textColor="#FFE0C068"
+                    android:textSize="18sp" />
+
+                <Button
+                    android:id="@+id/cast_volume_up"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cast_volume_up" />
+
+                <Button
+                    android:id="@+id/cast_mute"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/cast_mute" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/cast_close"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="@string/cast_stop" />
+        </LinearLayout>
+    </ScrollView>
+
 </FrameLayout>
