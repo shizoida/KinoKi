@@ -20,6 +20,9 @@
     <string name="season">სეზონი %s</string>
     <string name="imdb_rating">IMDb %s</string>
 
+    <!-- Picture-in-Picture on the phone -->
+    <string name="pip_enter">პატარა ფანჯარა</string>
+
     <!-- Casting to a TV on the local network -->
     <string name="cast_to_tv">ტელევიზორზე ▸</string>
     <string name="cast_searching">ვეძებ ტელევიზორს…</string>

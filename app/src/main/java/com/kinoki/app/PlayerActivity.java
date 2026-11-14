@@ -2,12 +2,16 @@ package com.kinoki.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PictureInPictureParams;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.util.Rational;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -26,6 +30,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
@@ -135,6 +140,12 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         castButton.setVisibility(View.GONE);
     }
 
+    private final Runnable hidePipButton = this::hidePipButtonNow;
+
+    private void hidePipButtonNow() {
+        pipButton.setVisibility(View.GONE);
+    }
+
     private final Runnable hideSystemBars = this::hideSystemBarsNow;
 
     /** Hides the clock and the navigation bar so the video gets the whole screen. */
@@ -163,6 +174,7 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
     private PlayerView playerView;
     private ExoPlayer player;
     private View castButton;
+    private View pipButton;
     private View castPanel;
     private TextView castState;
     private TextView castTitle;
@@ -198,6 +210,7 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
 
         playerView = findViewById(R.id.player);
         castButton = findViewById(R.id.cast_button);
+        pipButton = findViewById(R.id.pip_button);
         castPanel = findViewById(R.id.cast_panel);
         castState = findViewById(R.id.cast_state);
         castTitle = findViewById(R.id.cast_title);
@@ -210,9 +223,15 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
 
         if (CastHost.isTv(this)) {
             castButton.setVisibility(View.GONE);
+            pipButton.setVisibility(View.GONE);
         } else {
             castButton.setVisibility(View.GONE);
             castButton.setOnClickListener(v -> startCasting());
+            pipButton.setVisibility(View.GONE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                pipButton.setOnClickListener(v -> enterPipMode());
+                updatePipParams();
+            }
             gestures = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public void onLongPress(MotionEvent event) {
@@ -269,6 +288,7 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         handler.removeCallbacks(castPoll);
         handler.removeCallbacks(checkCastHosts);
         handler.removeCallbacks(hideCastButton);
+        handler.removeCallbacks(hidePipButton);
         handler.removeCallbacks(hideSystemBars);
         castPolling = false;
         saveCurrentPosition();
@@ -285,9 +305,10 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         if (gestures != null) {
             gestures.onTouchEvent(event);
         }
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-            // A tap brings the cast button and the status bar back for a few seconds.
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && !isInPictureInPictureMode()) {
+            // A tap brings the cast and picture-in-picture buttons and the status bar back for a few seconds.
             showCastButton();
+            showPipButton();
             showSystemBarsBriefly();
         }
         return super.dispatchTouchEvent(event);
@@ -313,6 +334,115 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         watchKey = getIntent().getStringExtra(EXTRA_WATCH_KEY);
         title = getIntent().getStringExtra(EXTRA_TITLE);
         setTitle(title);
+    }
+
+    // ---- picture-in-picture (phone) -----------------------------------------------------------------------------
+
+    /** Picture-in-picture exists from Android 8.0 and only makes sense on a phone, not on a TV. */
+    private boolean pipSupported() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !CastHost.isTv(this);
+    }
+
+    /** True while the phone itself shows the video (not while it is only the TV's remote). */
+    private boolean canShowPip() {
+        return pipSupported() && player != null && castPanel.getVisibility() != View.VISIBLE;
+    }
+
+    /** Android rejects PiP aspect ratios outside this range, and many films are wider than 2.39:1. */
+    private static final double MIN_PIP_ASPECT = 0.42;
+    private static final double MAX_PIP_ASPECT = 2.39;
+
+    /** The floating window keeps the movie's shape, so the video is neither stretched nor letterboxed. */
+    private Rational pipAspectRatio() {
+        int width = 16;
+        int height = 9;
+        if (player != null) {
+            VideoSize size = player.getVideoSize();
+            if (size.width > 0 && size.height > 0) {
+                width = size.width;
+                height = size.height;
+            }
+        }
+        double ratio = (double) width / height;
+        if (ratio < MIN_PIP_ASPECT) {
+            width = Math.max(1, (int) Math.round(height * MIN_PIP_ASPECT));
+        } else if (ratio > MAX_PIP_ASPECT) {
+            height = Math.max(1, (int) Math.round(width / MAX_PIP_ASPECT));
+        }
+        return new Rational(width, height);
+    }
+
+    private PictureInPictureParams pipParams() {
+        PictureInPictureParams.Builder params = new PictureInPictureParams.Builder()
+                .setAspectRatio(pipAspectRatio());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+: swiping home shrinks the playing movie straight away, without a tap.
+            params.setAutoEnterEnabled(canShowPip() && player.isPlaying());
+            params.setSeamlessResizeEnabled(true);
+        }
+        return params.build();
+    }
+
+    /** Keeps the system's "auto enter" decision in step with what is on screen. */
+    private void updatePipParams() {
+        if (!pipSupported() || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        try {
+            setPictureInPictureParams(pipParams());
+        } catch (IllegalStateException | IllegalArgumentException ignored) {
+            // The activity is going away, or this device refuses these params; there is nothing to configure.
+        }
+    }
+
+    private void enterPipMode() {
+        if (!canShowPip() || isInPictureInPictureMode()
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        try {
+            enterPictureInPictureMode(pipParams());
+        } catch (IllegalStateException | IllegalArgumentException ignored) {
+            // Not allowed in this state (for example while another dialog is up).
+        }
+    }
+
+    /** Shows the button for a few seconds after a touch; in the tiny window it is not needed. */
+    private void showPipButton() {
+        if (!canShowPip() || isInPictureInPictureMode()) {
+            return;
+        }
+        pipButton.setVisibility(View.VISIBLE);
+        handler.removeCallbacks(hidePipButton);
+        handler.postDelayed(hidePipButton, CAST_BUTTON_HIDE_MS);
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // Going home (or opening another app) shrinks the movie instead of stopping it.
+        if (canShowPip() && player.isPlaying()) {
+            enterPipMode();
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPip, Configuration configuration) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        super.onPictureInPictureModeChanged(inPip, configuration);
+        if (inPip) {
+            // The window is tiny: no cast or picture-in-picture button and no system bars.
+            handler.removeCallbacks(hideCastButton);
+            handler.removeCallbacks(hidePipButton);
+            handler.removeCallbacks(hideSystemBars);
+            castButton.setVisibility(View.GONE);
+            pipButton.setVisibility(View.GONE);
+        } else if (pipSupported()) {
+            hideSystemBarsNow();
+            updatePipParams();
+        }
     }
 
     // ---- playback -----------------------------------------------------------------------------------------------
@@ -343,6 +473,17 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
             public void onPlayerError(PlaybackException error) {
                 Toast.makeText(PlayerActivity.this, R.string.playback_failed, Toast.LENGTH_LONG).show();
             }
+
+            @Override
+            public void onVideoSizeChanged(VideoSize videoSize) {
+                updatePipParams();
+            }
+
+            @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                // Android 12+ may shrink the movie automatically only while it is actually playing.
+                updatePipParams();
+            }
         });
         playerView.setPlayer(player);
         playerView.requestFocus();
@@ -369,6 +510,9 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         }
         player.setPlayWhenReady(true);
         player.prepare();
+        updatePipParams();
+        // Point the feature out once, then it gets out of the picture like the cast button.
+        showPipButton();
 
         if (CastHost.isTv(this)) {
             CastHost.attach(this);
@@ -477,7 +621,8 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
 
     /** Shows the cast button for a few seconds, unless there is nothing to cast to or the remote is on screen. */
     private void showCastButton() {
-        if (!castAvailable || castDevice != null || castPanel.getVisibility() == View.VISIBLE) {
+        if (!castAvailable || castDevice != null || castPanel.getVisibility() == View.VISIBLE
+                || isInPictureInPictureMode()) {
             return;
         }
         castButton.setVisibility(View.VISIBLE);
@@ -545,6 +690,9 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         }
         castButton.setVisibility(View.GONE);
         castPanel.setVisibility(View.VISIBLE);
+        handler.removeCallbacks(hidePipButton);
+        pipButton.setVisibility(View.GONE);
+        updatePipParams();
         showSystemBars();
         handler.removeCallbacks(checkCastHosts);
         handler.removeCallbacks(hideCastButton);
@@ -700,6 +848,7 @@ public class PlayerActivity extends Activity implements CastHost.Remote {
         castPanel.setVisibility(View.GONE);
         handler.removeCallbacks(hideCastButton);
         castButton.setVisibility(View.GONE);
+        updatePipParams();
         hideSystemBarsNow();
     }
 

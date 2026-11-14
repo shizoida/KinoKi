@@ -31,6 +31,26 @@
         android:textColor="#FFFFFFFF"
         android:textSize="15sp" />
 
+    <!-- Phone only: shrinks the movie into the little floating window (Picture-in-Picture) -->
+    <TextView
+        android:id="@+id/pip_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="76dp"
+        android:layout_marginEnd="24dp"
+        android:background="@drawable/cast_button"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingStart="18dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="10dp"
+        android:text="@string/pip_enter"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
     <!-- Phone only: shown instead of the video while the TV is playing -->
     <ScrollView
         android:id="@+id/cast_panel"

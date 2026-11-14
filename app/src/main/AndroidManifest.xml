@@ -29,12 +29,15 @@
             </intent-filter>
         </activity>
 
+        <!-- supportsPictureInPicture: on a phone the movie can shrink into the floating window. -->
         <activity
             android:name=".PlayerActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
             android:exported="false"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape" />
+            android:resizeableActivity="true"
+            android:screenOrientation="landscape"
+            android:supportsPictureInPicture="true" />
 
         <service
             android:name=".CastService"
