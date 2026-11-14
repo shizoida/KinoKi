@@ -67,6 +67,8 @@ final class Site {
     private static final Pattern OG_IMAGE = Pattern.compile("<meta property=\"og:image\" content=\"([^\"]+)\"");
     private static final Pattern POSTER_IMG = Pattern.compile(
             "class=\"fullstory-poster\">.*?<img\\s[^>]*?src=\"([^\"]+)\"", Pattern.DOTALL);
+    /** The page's JSON-LD carries the genres as one comma-separated string, a few kilobytes into the head. */
+    private static final Pattern GENRES = Pattern.compile("\"genre\"\\s*:\\s*\"([^\"]*)\"");
     /** The synopsis is in the page head and the poster a little further down, so only the start of the page is read. */
     private static final int HEAD_BYTES = 48 * 1024;
     private static final Pattern PANEL = Pattern.compile(
@@ -195,18 +197,20 @@ final class Site {
         }
     }
 
-    /** Extras from a title's own page: the synopsis and the poster. Either may be empty. */
+    /** Extras from a title's own page: the synopsis, poster and genres. Any of them may be empty. */
     static final class Details {
         final String description;
         final String poster;
+        final String genres;
 
-        Details(String description, String poster) {
+        Details(String description, String poster, String genres) {
             this.description = description;
             this.poster = poster;
+            this.genres = genres;
         }
     }
 
-    /** Reads the synopsis and poster from a title's page, downloading only the first part of it. */
+    /** Reads the synopsis, poster and genres from a title's page, downloading only the first part of it. */
     static Details fetchDetails(String url) throws IOException {
         Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT).build();
         try (Response response = execute(request)) {
@@ -229,7 +233,8 @@ final class Site {
                     poster = poster.replace("/w1280/", "/w342/");
                 }
             }
-            return new Details(description == null ? "" : description, poster);
+            String genres = firstGroup(GENRES, head);
+            return new Details(description == null ? "" : description, poster, genres == null ? "" : genres);
         }
     }
 

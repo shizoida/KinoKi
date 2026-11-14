@@ -545,11 +545,12 @@ public class MainActivity extends Activity {
             return row.kind == Kind.TITLE ? bindTitle(row, convertView, parent) : bindText(row, convertView, parent);
         }
 
-        /** A title: poster, name (starred if a favorite, green if watched), year and rating, and the synopsis. */
+        /** A title: poster, name (starred if a favorite, green if watched), year, rating and genres, and the synopsis. */
         private View bindTitle(Row row, View convertView, ViewGroup parent) {
             View view = convertView != null ? convertView
                     : getLayoutInflater().inflate(R.layout.item_title, parent, false);
             Site.Title title = row.title;
+            Site.Details details = Descriptions.get(row.url);
 
             TextView name = view.findViewById(R.id.name);
             if (TitleStore.FAVORITES.contains(row.url)) {
@@ -569,11 +570,14 @@ public class MainActivity extends Activity {
             if (title.rating != null) {
                 meta.append(meta.length() > 0 ? "  ·  " : "").append(getString(R.string.imdb_rating, title.rating));
             }
+            if (details != null && !details.genres.isEmpty()) {
+                meta.append(meta.length() > 0 ? "  ·  " : "")
+                        .append(getString(R.string.genre_selected, details.genres));
+            }
             TextView metaView = view.findViewById(R.id.meta);
             metaView.setText(meta);
             metaView.setVisibility(meta.length() > 0 ? View.VISIBLE : View.GONE);
 
-            Site.Details details = Descriptions.get(row.url);
             if (details == null) {
                 Descriptions.request(row.url, this::notifyDataSetChanged);
             }

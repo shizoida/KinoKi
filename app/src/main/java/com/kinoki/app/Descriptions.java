@@ -11,8 +11,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Synopses (and posters, for saved titles that predate them) for the list rows. The listing pages don't carry these, so
- * each is fetched from the title's own page the first time its row is shown, then kept for the rest of the session.
+ * Synopses, genres (and posters, for saved titles that predate them) for the list rows. The listing pages don't carry
+ * these, so each is fetched from the title's own page the first time its row is shown, then kept for the rest of the
+ * session.
  */
 final class Descriptions {
 
